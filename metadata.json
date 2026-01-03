@@ -1,0 +1,7 @@
+{
+  "name": "文法&場景(g)",
+  "description": "An intelligent language learning assistant powered by Gemini. Practice conversations, get instant grammar feedback, and listen to native-level pronunciation.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
