@@ -1,9 +1,9 @@
 import { Language, Scenario } from './types';
 
 export const LANGUAGES: Language[] = [
-  { code: 'en', name: 'English', voiceName: 'Puck' },
-  { code: 'zh-TW', name: 'Chinese (Traditional / Taiwan)', voiceName: 'Fenrir' },
-  { code: 'zh-CN', name: 'Chinese (Simplified / China)', voiceName: 'Kore' },
+  { code: 'en', name: 'English', voiceName: 'Kore' },
+  { code: 'zh-TW', name: 'Chinese (Traditional / Taiwan)', voiceName: 'Puck' },
+  { code: 'zh-CN', name: 'Chinese (Simplified / China)', voiceName: 'Fenrir' }
 ];
 
 export const SCENARIOS: Scenario[] = [

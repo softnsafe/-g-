@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { LANGUAGES, SCENARIOS } from './constants';
-import { AppState, Language, Message, Role, Scenario, GrammarCorrection, VocabularySuggestion, ReviewSession } from './types';
-import { sendMessageToGemini, generateSpeech, analyzeGrammar, createWavUrlFromPcm, getVocabularySuggestions, generateReviewSession } from './services/geminiService';
+import { AppState, Message, Role, GrammarCorrection, VocabularySuggestion, ReviewSession } from './types';
+// Import from Gemini Service
+import { sendMessageToGemini, generateSpeech, createWavUrlFromPcm, analyzeGrammar, getVocabularySuggestions, generateReviewSession } from './services/geminiService';
 import ChatBubble from './components/ChatBubble';
 import ScenarioCard from './components/ScenarioCard';
 import GrammarModal from './components/GrammarModal';
@@ -18,7 +19,7 @@ const App: React.FC = () => {
     selectedScenario: null,
     messages: [],
     isConfigured: false,
-    autoPlayAudio: true, // Default to auto-playing audio for immersion
+    autoPlayAudio: true, 
   });
   
   const [input, setInput] = useState('');
@@ -54,9 +55,8 @@ const App: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
-  const recognitionRef = useRef<any>(null); // For Web Speech API
+  const recognitionRef = useRef<any>(null); 
 
-  // Helper to stop currently playing audio
   const stopAudio = () => {
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
@@ -65,7 +65,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Scroll to bottom when messages change
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -80,9 +79,8 @@ const App: React.FC = () => {
       
       let scenarioToUse = state.selectedScenario;
 
-      // Handle Custom Scenario Generation
       if (scenarioToUse.id === 'custom') {
-        if (!customInput.topic.trim()) return; // Should be handled by UI disabled state, but safety check
+        if (!customInput.topic.trim()) return;
 
         const aiRole = customInput.aiRole.trim() || 'AI Tutor';
         const userRole = customInput.userRole.trim() || 'Student';
@@ -96,7 +94,6 @@ const App: React.FC = () => {
         };
       }
 
-      // Initialize chat with system prompt context
       let greeting = '';
       if (scenarioToUse.id === 'free_chat') {
         greeting = 'What would you like to talk about?';
@@ -120,31 +117,25 @@ const App: React.FC = () => {
         messages: [initialMessage]
       }));
 
-      // Trigger auto-play for the greeting if enabled
       if (state.autoPlayAudio) {
         generateSpeechForMessage(initialMessage, state.targetLanguage.voiceName);
       }
     }
   };
 
-  // Helper to generate and play audio for a message object, then update state
   const generateSpeechForMessage = async (msg: Message, voiceName: string) => {
-    // 1. Set loading state
     setState(prev => ({
         ...prev,
         messages: prev.messages.map(m => m.id === msg.id ? { ...m, isAudioLoading: true } : m)
     }));
 
-    // 2. Generate
-    const audioData = await generateSpeech(msg.text, voiceName);
+    // Gemini returns base64 PCM
+    const base64Audio = await generateSpeech(msg.text, voiceName);
 
-    // 3. Play & Update
-    if (audioData) {
-        // Convert PCM data to a playable WAV Blob URL
-        const url = createWavUrlFromPcm(audioData);
-        
-        stopAudio(); // Stop any currently playing audio
-        const audio = new Audio(url);
+    if (base64Audio) {
+        const audioUrl = createWavUrlFromPcm(base64Audio);
+        stopAudio(); 
+        const audio = new Audio(audioUrl);
         currentAudioRef.current = audio;
         
         try {
@@ -155,7 +146,7 @@ const App: React.FC = () => {
 
         setState(prev => ({
             ...prev,
-            messages: prev.messages.map(m => m.id === msg.id ? { ...m, audioUrl: url, isAudioLoading: false } : m)
+            messages: prev.messages.map(m => m.id === msg.id ? { ...m, audioUrl: audioUrl, isAudioLoading: false } : m)
         }));
     } else {
         setState(prev => ({
@@ -168,7 +159,6 @@ const App: React.FC = () => {
   const handleSendMessage = async () => {
     if (!input.trim() || isSending) return;
 
-    // Stop recording if active when sending
     if (isRecording) {
       stopListening();
     }
@@ -184,20 +174,18 @@ const App: React.FC = () => {
       timestamp: Date.now(),
     };
 
-    // Optimistic update for User Message
     setState(prev => ({
       ...prev,
       messages: [...prev.messages, newUserMsg]
     }));
 
     try {
-      // Prepare history for API
+      // Map history for Gemini (needs role and parts)
       const history = state.messages.map(m => ({
         role: m.role,
         parts: [{ text: m.text }]
       }));
 
-      // Augment system instruction
       const fullSystemPrompt = `
         You are an expert language tutor teaching ${state.targetLanguage?.name} to a native ${state.nativeLanguage?.name} speaker.
         Current Scenario: ${state.selectedScenario?.description}
@@ -218,13 +206,11 @@ const App: React.FC = () => {
         timestamp: Date.now(),
       };
 
-      // Update state with Model Message
       setState(prev => ({
         ...prev,
         messages: [...prev.messages, newModelMsg]
       }));
 
-      // Auto-play logic
       if (state.autoPlayAudio && state.targetLanguage) {
           await generateSpeechForMessage(newModelMsg, state.targetLanguage.voiceName);
       }
@@ -243,7 +229,6 @@ const App: React.FC = () => {
     }
   };
 
-  // --- Speech to Text Logic ---
   const toggleListening = () => {
     if (isRecording) {
       stopListening();
@@ -268,9 +253,9 @@ const App: React.FC = () => {
     recognition.lang = state.targetLanguage?.code || 'en-US';
 
     setIsRecording(true);
-    stopAudio(); // Stop any audio playing when user wants to speak
+    stopAudio(); 
 
-    let baseInput = input; // Snapshot of input before current speech segment
+    let baseInput = input; 
 
     recognition.onresult = (event: any) => {
       let interimTranscript = '';
@@ -285,11 +270,9 @@ const App: React.FC = () => {
       }
 
       if (finalTranscriptChunk) {
-        // Append finalized text to base and update base
         baseInput = baseInput + (baseInput && !baseInput.endsWith(' ') ? ' ' : '') + finalTranscriptChunk;
         setInput(baseInput);
       } else {
-        // Show interim text
         const separator = baseInput && !baseInput.endsWith(' ') ? ' ' : '';
         setInput(baseInput + separator + interimTranscript);
       }
@@ -301,12 +284,7 @@ const App: React.FC = () => {
     };
 
     recognition.onend = () => {
-      // We manually control isRecording state to toggle icon, 
-      // but if it stops by itself (timeout), we update state.
-      // We don't want to set isRecording(false) here if we plan to restart it (continuous mode usually handles itself),
-      // but for UI sync, let's allow it to drop to false if the browser kills it.
       if (isRecording) {
-          // It stopped unexpectedly or naturally
           setIsRecording(false);
       }
     };
@@ -328,12 +306,11 @@ const App: React.FC = () => {
 
 
   const handlePlayAudio = async (messageId: string, text: string) => {
-    // Check if we already have the audio
     const messageIndex = state.messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) return;
     
     if (state.messages[messageIndex].audioUrl) {
-      stopAudio(); // Stop existing
+      stopAudio(); 
       const audio = new Audio(state.messages[messageIndex].audioUrl);
       currentAudioRef.current = audio;
       audio.play();
@@ -342,23 +319,22 @@ const App: React.FC = () => {
 
     const voiceName = state.targetLanguage?.voiceName || 'Kore';
 
-    // Set loading
     setState(prev => {
       const newMsgs = [...prev.messages];
       newMsgs[messageIndex] = { ...newMsgs[messageIndex], isAudioLoading: true };
       return { ...prev, messages: newMsgs };
     });
 
-    const audioData = await generateSpeech(text, voiceName);
+    const base64Audio = await generateSpeech(text, voiceName);
 
     setState(prev => {
       const newMsgs = [...prev.messages];
-      if (audioData) {
-        const url = createWavUrlFromPcm(audioData);
-        newMsgs[messageIndex] = { ...newMsgs[messageIndex], audioUrl: url, isAudioLoading: false };
+      if (base64Audio) {
+        const audioUrl = createWavUrlFromPcm(base64Audio);
+        newMsgs[messageIndex] = { ...newMsgs[messageIndex], audioUrl: audioUrl, isAudioLoading: false };
         
-        stopAudio(); // Stop existing
-        const audio = new Audio(url);
+        stopAudio();
+        const audio = new Audio(audioUrl);
         currentAudioRef.current = audio;
         audio.play();
       } else {
@@ -421,8 +397,6 @@ const App: React.FC = () => {
     setIsReviewLoading(false);
   };
 
-  // --- Render Views ---
-
   const renderSetup = () => (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-gray-900 via-gray-900 to-black">
       <div className="bg-gray-800 max-w-2xl w-full rounded-3xl shadow-xl p-8 space-y-8 my-8 border border-gray-700">
@@ -432,7 +406,6 @@ const App: React.FC = () => {
         </div>
 
         <div className="space-y-6">
-          {/* Languages */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">I speak</label>
@@ -458,7 +431,6 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Scenarios */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-3">Choose a Scenario</label>
             <div className="grid grid-cols-2 gap-4">
@@ -472,7 +444,6 @@ const App: React.FC = () => {
               ))}
             </div>
 
-            {/* Custom Scenario Form */}
             {state.selectedScenario?.id === 'custom' && (
                 <div className="mt-6 p-5 bg-gray-700/50 rounded-2xl border border-gray-600 animate-fadeIn shadow-inner">
                     <h4 className="font-bold text-white mb-4 flex items-center gap-2">
@@ -528,7 +499,6 @@ const App: React.FC = () => {
 
   const renderChat = () => (
     <div className="flex flex-col h-screen bg-gray-900">
-      {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-full bg-indigo-900/50 flex items-center justify-center text-xl text-white">
@@ -541,7 +511,6 @@ const App: React.FC = () => {
         </div>
         
         <div className="flex items-center gap-4">
-          {/* Review Button */}
           <button 
             onClick={handleOpenReview}
             disabled={state.messages.length < 2}
@@ -601,7 +570,6 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Messages */}
       <div 
         ref={chatContainerRef}
         className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 scrollbar-hide"
@@ -627,10 +595,8 @@ const App: React.FC = () => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
       <div className="p-4 bg-gray-800 border-t border-gray-700 sticky bottom-0">
         <div className="max-w-4xl mx-auto flex items-end gap-2 bg-gray-700 rounded-2xl p-2">
-          {/* Vocabulary Button */}
           <button
             onClick={handleOpenVocab}
             className="p-3 rounded-xl bg-yellow-900/30 hover:bg-yellow-900/50 transition-colors mb-0.5 text-xl"
@@ -649,7 +615,6 @@ const App: React.FC = () => {
             style={{ minHeight: '48px' }}
           />
 
-          {/* Microphone Button */}
           <button
             onClick={toggleListening}
             className={`p-3 rounded-xl mb-0.5 transition-all duration-300 ${
